@@ -15,6 +15,14 @@
       "data": {
         "description" : "this is Layout"
       }
+    },
+    {
+      "name": "SinglePlayer",
+      "pageSourceFile": "src/main/ets/pages/Single-player.ets",
+      "buildFunction": "SinglePlayerBuilder",
+      "data": {
+        "description" : "this is SinglePlayer"
+      }
     }
   ]
 }

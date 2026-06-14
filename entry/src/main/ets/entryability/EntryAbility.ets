@@ -1,6 +1,7 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import preferences from '@ohos.data.preferences';
 
 const DOMAIN = 0x0000;
 
@@ -12,6 +13,30 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    
+    // 先设置默认值，确保AppStorage中有coins和paddleUpgrade
+    AppStorage.setOrCreate('coins', 0);
+    AppStorage.setOrCreate('paddleUpgrade', 0);
+    
+    // 异步从本地存储读取数据并更新
+    try {
+      preferences.getPreferences(this.context, 'game_data').then((prefs) => {
+        // 读取金币
+        prefs.get('coins', 0).then((value) => {
+          let coins = value as number;
+          AppStorage.setOrCreate('coins', coins);
+          hilog.info(DOMAIN, 'testTag', 'Loaded coins: %{public}d', coins);
+        });
+        // 读取升级次数
+        prefs.get('paddleUpgrade', 0).then((value) => {
+          let paddleUpgrade = value as number;
+          AppStorage.setOrCreate('paddleUpgrade', paddleUpgrade);
+          hilog.info(DOMAIN, 'testTag', 'Loaded paddleUpgrade: %{public}d', paddleUpgrade);
+        });
+      });
+    } catch (e) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to load data: %{public}s', JSON.stringify(e));
+    }
   }
 
   onDestroy(): void {
