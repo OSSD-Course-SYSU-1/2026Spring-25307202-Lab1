@@ -203,6 +203,12 @@ struct TwoPlayers {
   build() {
     NavDestination() {
       Stack() {
+        // 游戏背景图 - 与游戏画布宽度对齐
+        Image($r('app.media.Game_background'))
+          .width(this.canvasWidth)
+          .height(this.canvasHeight)
+          .objectFit(ImageFit.Fill)
+
         Column() {
           // 游戏画布
           Stack() {
@@ -210,7 +216,7 @@ struct TwoPlayers {
             Column()
               .width('100%')
               .height('100%')
-              .backgroundColor('#1a1a2e')
+              .backgroundColor('transparent')  // 透明背景，显示底层背景图
 
             // 中线
             Rect()
@@ -312,7 +318,6 @@ struct TwoPlayers {
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#16213e')
 
         // 暂停按钮
         if (this.gameStarted && !this.gameOver) {
@@ -331,7 +336,6 @@ struct TwoPlayers {
       .width('100%')
       .height('100%')
       .padding({ left: 10, right: 10 })
-      .backgroundColor('#16213e')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
     .hideTitleBar(true)

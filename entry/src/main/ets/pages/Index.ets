@@ -2,6 +2,7 @@ import { StartBuilder } from './Start'
 import { LayoutBuilder } from './Layout'
 import { SinglePlayerBuilder } from './Single-player'
 import { TwoPlayersBuilder } from './Two-players'
+import { EndlessModeBuilder } from './Endless-mode'
 
 @Entry
 @Component
@@ -18,6 +19,8 @@ struct SystemRoutingTable {
       SinglePlayerBuilder()
     } else if (name === 'TwoPlayers') {
       TwoPlayersBuilder()
+    } else if (name === 'EndlessMode') {
+      EndlessModeBuilder()
     }
   }
 

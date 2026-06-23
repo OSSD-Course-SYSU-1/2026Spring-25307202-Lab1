@@ -1,13 +1,12 @@
 import window from '@ohos.window';
-import preferences from '@ohos.data.preferences';
 
 @Builder
-export function SinglePlayerBuilder() {
-  SinglePlayer()
+export function EndlessModeBuilder() {
+  EndlessMode()
 }
 
 @Component
-struct SinglePlayer {
+struct EndlessMode {
   // 游戏区域尺寸
   @State canvasWidth: number = 0
   @State canvasHeight: number = 0
@@ -29,40 +28,40 @@ struct SinglePlayer {
   @State playerPaddleHeight: number = 65  // 玩家球拍高度
   @State leftPaddleY: number = 0   // 左侧AI球拍Y位置
   @State rightPaddleY: number = 0  // 右侧玩家球拍Y位置
-  
+
   // 升级次数
   @StorageLink('paddleUpgrade') @Watch('onPaddleUpgradeChange') paddleUpgrade: number = 0
-  
+
   // 监听升级次数变化，更新玩家球拍高度
   onPaddleUpgradeChange(): void {
     this.playerPaddleHeight = 65 + this.paddleUpgrade * 5
   }
 
-  // AI移动速度上限
-  aiMaxSpeed: number = 4
+  // AI移动速度上限（固定为8）
+  aiMaxSpeed: number = 8
 
   // 游戏状态
   @State gameOver: boolean = false
-  @State winner: string = ''
   @State countdown: number = 3  // 倒计时
   @State gameStarted: boolean = false  // 游戏是否开始
-  @State difficultySelected: boolean = false  // 是否已选择难度
-  @State currentDifficulty: string = ''  // 当前难度
   @State isPaused: boolean = false  // 是否暂停
+  @State showEndScreen: boolean = false  // 是否显示结束画面
+
+  // 比分
+  @State aiScore: number = 0
+  @State playerScore: number = 0
 
   // 定时器ID
   private intervalId: number = -1
+  private countdownIntervalId: number = -1
 
   // 路由栈
   pathStack: NavPathStack = new NavPathStack()
-  
-  // 金币数量
-  @StorageLink('coins') coins: number = 0
 
   aboutToAppear(): void {
     // 初始化玩家球拍高度
     this.playerPaddleHeight = 65 + this.paddleUpgrade * 5
-    
+
     // 设置横屏
     try {
       window.getLastWindow(getContext(this)).then((windowClass) => {
@@ -71,21 +70,22 @@ struct SinglePlayer {
     } catch (e) {
       console.error('设置横屏失败: ' + e)
     }
-    
-    // 初始化游戏（但不开始倒计时，等待选择难度）
+
+    // 初始化游戏并开始倒计时
     setTimeout(() => {
       this.initGame()
+      this.startCountdown()
     }, 100)
   }
 
   startCountdown(): void {
     this.countdown = 3
     this.gameStarted = false
-    
-    let countdownInterval = setInterval(() => {
+
+    this.countdownIntervalId = setInterval(() => {
       this.countdown--
       if (this.countdown <= 0) {
-        clearInterval(countdownInterval)
+        clearInterval(this.countdownIntervalId)
         this.gameStarted = true
         this.startGameLoop()
       }
@@ -101,30 +101,13 @@ struct SinglePlayer {
     } catch (e) {
       console.error('恢复竖屏失败: ' + e)
     }
-    
+
     if (this.intervalId !== -1) {
       clearInterval(this.intervalId)
     }
-  }
-
-  // 设置难度并开始游戏
-  setDifficulty(difficulty: string): void {
-    // 保存当前难度
-    this.currentDifficulty = difficulty
-    
-    if (difficulty === 'easy') {
-      this.aiMaxSpeed = 3
-    } else if (difficulty === 'hard') {
-      this.aiMaxSpeed = 5
-    } else if (difficulty === 'hell') {
-      this.aiMaxSpeed = 8
+    if (this.countdownIntervalId !== -1) {
+      clearInterval(this.countdownIntervalId)
     }
-    
-    // 标记已选择难度
-    this.difficultySelected = true
-    
-    // 开始倒计时
-    this.startCountdown()
   }
 
   initGame(): void {
@@ -144,7 +127,17 @@ struct SinglePlayer {
     this.rightPaddleY = this.canvasHeight / 2 - this.playerPaddleHeight / 2
 
     this.gameOver = false
-    this.winner = ''
+  }
+
+  // 重新发球
+  resetBall(): void {
+    this.ballX = this.canvasWidth / 2
+    this.ballY = this.canvasHeight / 2
+    this.ballVX = 5
+    this.ballVY = 0
+    this.gravityDirection = 1
+    this.gameOver = false
+    this.startCountdown()
   }
 
   startGameLoop(): void {
@@ -208,23 +201,25 @@ struct SinglePlayer {
     // 检测得分（球出界）
     if (this.ballX < 0) {
       // 玩家得分
+      this.playerScore++
       this.gameOver = true
-      this.winner = '玩家获胜！'
-      // 根据难度增加金币
-      if (this.currentDifficulty === 'easy') {
-        this.coins += 1
-      } else if (this.currentDifficulty === 'hard') {
-        this.coins += 3
-      } else if (this.currentDifficulty === 'hell') {
-        this.coins += 10
-      }
-      // 保存金币到本地
-      this.saveCoins()
+      // 延迟后重新发球
+      setTimeout(() => {
+        if (!this.showEndScreen) {
+          this.resetBall()
+        }
+      }, 1000)
     }
     if (this.ballX > this.canvasWidth) {
       // AI得分
+      this.aiScore++
       this.gameOver = true
-      this.winner = 'AI获胜！'
+      // 延迟后重新发球
+      setTimeout(() => {
+        if (!this.showEndScreen) {
+          this.resetBall()
+        }
+      }, 1000)
     }
 
     // AI控制左侧球拍
@@ -249,20 +244,6 @@ struct SinglePlayer {
     if (this.rightPaddleY < 0) this.rightPaddleY = 0
     if (this.rightPaddleY + this.playerPaddleHeight > this.canvasHeight) {
       this.rightPaddleY = this.canvasHeight - this.playerPaddleHeight
-    }
-  }
-
-  // 保存金币到本地存储
-  saveCoins(): void {
-    try {
-      preferences.getPreferences(getContext(this), 'game_data').then((prefs) => {
-        prefs.put('coins', this.coins).then(() => {
-          prefs.flush()
-          console.log('金币已保存: ' + this.coins)
-        })
-      })
-    } catch (e) {
-      console.error('保存金币失败: ' + e)
     }
   }
 
@@ -312,52 +293,16 @@ struct SinglePlayer {
               .fill('#ffffff')
               .position({ x: this.ballX - this.ballRadius, y: this.ballY - this.ballRadius })
 
-            // 难度选择
-            if (!this.difficultySelected && !this.gameStarted) {
-              Column() {
-                Text('选择难度')
-                  .fontSize(40)
-                  .fontColor('#ffffff')
-                  .fontWeight(FontWeight.Bold)
-                  .margin({ bottom: 30 })
-                
-                Button('简单模式')
-                  .width(200)
-                  .height(60)
-                  .fontSize(24)
-                  .backgroundColor('#4CAF50')
-                  .margin({ bottom: 15 })
-                  .onClick(() => {
-                    this.setDifficulty('easy')
-                  })
-                
-                Button('困难模式')
-                  .width(200)
-                  .height(60)
-                  .fontSize(24)
-                  .backgroundColor('#FF9800')
-                  .margin({ bottom: 15 })
-                  .onClick(() => {
-                    this.setDifficulty('hard')
-                  })
-                
-                Button('地狱模式')
-                  .width(200)
-                  .height(60)
-                  .fontSize(24)
-                  .backgroundColor('#F44336')
-                  .onClick(() => {
-                    this.setDifficulty('hell')
-                  })
-              }
-              .width('100%')
-              .height('100%')
-              .justifyContent(FlexAlign.Center)
-              .backgroundColor('rgba(0, 0, 0, 0.7)')
-            }
+            // 比分显示（屏幕中间上方）
+            Text(this.playerScore + ' : ' + this.aiScore)
+              .fontSize(30)
+              .fontColor('#ffffff')
+              .fontWeight(FontWeight.Bold)
+              .position({ x: this.canvasWidth / 2, y: 10 })
+              .translate({ x: '-50%' })
 
             // 倒计时显示
-            if (!this.gameStarted && this.countdown > 0 && this.difficultySelected) {
+            if (!this.gameStarted && this.countdown > 0) {
               Column() {
                 Text(this.countdown.toString())
                   .fontSize(80)
@@ -370,10 +315,10 @@ struct SinglePlayer {
               .backgroundColor('rgba(0, 0, 0, 0.5)')
             }
 
-            // 游戏结束提示
-            if (this.gameOver) {
+            // 结束画面
+            if (this.showEndScreen) {
               Column() {
-                if (this.winner === '玩家获胜！') {
+                if (this.aiScore <= this.playerScore) {
                   Image($r('app.media.victory_imag'))
                     .width(300)
                     .height(150)
@@ -388,10 +333,11 @@ struct SinglePlayer {
                   .fontColor('#ffffff')
                   .fontSize(18)
                   .onClick(() => {
+                    this.aiScore = 0
+                    this.playerScore = 0
+                    this.showEndScreen = false
                     this.initGame()
-                    this.difficultySelected = false
-                    this.gameStarted = false
-                    this.countdown = 3
+                    this.startCountdown()
                   })
                 Button('返回')
                   .margin({ top: 10 })
@@ -425,7 +371,7 @@ struct SinglePlayer {
           .width(this.canvasWidth)
           .height(this.canvasHeight)
           .onTouch((event: TouchEvent) => {
-            if (this.gameStarted && (event.type === TouchType.Move || event.type === TouchType.Down)) {
+            if (this.gameStarted && !this.showEndScreen && (event.type === TouchType.Move || event.type === TouchType.Down)) {
               let touchY = event.touches[0].y
               this.handleTouch(touchY)
             }
@@ -435,8 +381,30 @@ struct SinglePlayer {
         .height('100%')
         .justifyContent(FlexAlign.Center)
 
+        // 结束按钮（左上角）
+        if (!this.showEndScreen) {
+          Button('结束')
+            .width(70)
+            .height(45)
+            .fontSize(18)
+            .backgroundColor('#F44336')
+            .position({ x: 10, y: 10 })
+            .onClick(() => {
+              // 停止所有定时器
+              if (this.intervalId !== -1) {
+                clearInterval(this.intervalId)
+              }
+              if (this.countdownIntervalId !== -1) {
+                clearInterval(this.countdownIntervalId)
+              }
+              // 停止游戏
+              this.gameStarted = false
+              this.showEndScreen = true
+            })
+        }
+
         // 暂停按钮
-        if (this.gameStarted && !this.gameOver) {
+        if (this.gameStarted && !this.gameOver && !this.showEndScreen) {
           Button(this.isPaused ? '继续' : '暂停')
             .width(70)
             .height(45)
